@@ -65,7 +65,7 @@ def test_updated_partition_append_does_not_break_old_record(monkeypatch,tmp_path
     folder=tmp_path/'market';folder.mkdir()
     d=pd.DataFrame({'open':100.,'high':101.,'low':99.,'close':100.,'volume':10.},index=pd.date_range('2024-01-01',periods=1500,freq='min',tz='UTC'))
     path=folder/'2024-01.parquet';d.iloc[:1440].to_parquet(path)
-    meta={'id':'TESTUSD','name':'test','category':'crypto','adapter':'market_parquet','base':'1m','currency':'USD','source':str(folder),'start':'2024-01-01','end':'2024-01-01T23:59Z','lot':.000001,'size_precision':6,'price_precision':2,'multiplier':1,'year_days':365,'default_fee':.0005,'default_slippage':.0002,'allow_gaps':True}
+    meta={'id':'TESTUSD','name':'test','category':'crypto','adapter':'market_parquet','base':'1m','currency':'USD','source':'market','start':'2024-01-01','end':'2024-01-01T23:59Z','lot':.000001,'size_precision':6,'price_precision':2,'multiplier':1,'year_days':365,'default_fee':.0005,'default_slippage':.0002,'allow_gaps':True}
     manifest=tmp_path/'data';manifest.mkdir();(manifest/'downloaded-assets.json').write_text(json.dumps([meta]),'utf-8')
     s=Session({**CFG,'symbol':'TESTUSD'});r=None
     try:
