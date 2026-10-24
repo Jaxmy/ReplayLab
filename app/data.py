@@ -30,6 +30,9 @@ class DataAdapter(Protocol):
     meta:dict
     def read(self,start,end,warmup):...
     def fingerprint(self):...
+def source_path(value):
+    path=Path(value)
+    return path if path.is_absolute() else ROOT/path
 @lru_cache(maxsize=512)
 def file_digest(path,size,mtime):
     h=hashlib.sha256()
@@ -58,7 +61,9 @@ class BinanceParquet:
         return pd.concat(frames,ignore_index=True).set_index('open_time').sort_index()
     def fingerprint(self):return hash_files(self.files)
 class CSVAdapter:
-    def __init__(self,meta):self.meta=meta;self.files=[Path(meta['source'])]
+    def __init__(self,meta):
+        self.meta=dict(meta);self.files=[source_path(meta['source'])]
+        self.meta['source']=str(self.files[0])
     def read(self,start,end,warmup):
         d=pd.read_csv(self.files[0]);raw=pd.to_datetime(d.pop(self.meta.get('time_column','date')),errors='raise')
         if raw.dt.tz is None:raw=raw.dt.tz_localize(self.meta.get('timezone','UTC'),ambiguous='raise',nonexistent='raise')
@@ -66,13 +71,14 @@ class CSVAdapter:
         return pd.concat([d[d.index<start].tail(warmup),d[(d.index>=start)&(d.index<end)]])
     def fingerprint(self):return hash_files(self.files)
 class MarketParquet:
-    def __init__(self,meta):self.meta=meta;self.files=[]
+    def __init__(self,meta):
+        self.meta=dict(meta);self.source=source_path(meta['source']);self.meta['source']=str(self.source);self.files=[]
     def read(self,start,end,warmup):
         lo=start-duration(self.meta['base'])*warmup;parts=[];self.files=[]
         # Trading-calendar gaps need extra warmup days for indicators.
         if self.meta['base']=='1d':lo=start-pd.Timedelta(days=warmup*2)
         for m in pd.period_range(lo.tz_localize(None),end.tz_localize(None),freq='M'):
-            p=Path(self.meta['source'])/f'{m}.parquet'
+            p=self.source/f'{m}.parquet'
             if p.exists():
                 d=pd.read_parquet(p);parts.append(d[(d.index>=lo)&(d.index<end)]);self.files.append(p)
         if not parts:raise ValueError('区间没有本地行情，下载可能尚未完成')
