@@ -1,0 +1,7 @@
+{
+  "provider": "EODHD",
+  "enabled_automatically": false,
+  "requires": "先确认报价、交易所/指数权限与所需历史覆盖，再订阅并在手动导入时输入令牌",
+  "import_command": ".venv\\Scripts\\python.exe -m scripts.import_eodhd --ticker YOUR_INDEX.EXCHANGE --asset-id paid_index --name YOUR_NAME --category index_us --start 2024-01-01 --end 2024-02-01 --interval 1m",
+  "note": "令牌只在手动导入期间临时输入，不保存到文件。不假设所有指数均有 1 分钟数据；股票覆盖说明不等于指数覆盖。自动更新只使用免费源。"
+}

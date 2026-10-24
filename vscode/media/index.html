@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Replay Lab · 本地交易练习</title><link rel="stylesheet" href="/static/style.css?v=0.3.0.1"></head>
+<body>
+<header><div class="brand"><span class="mark">R</span><div>REPLAY LAB<small>本地交易练习 · NautilusTrader</small></div></div><div class="topnote"><span class="dot"></span> 本地运行 <span class="tag">开发预览版</span></div><button id="settingsToggle">数据与指标</button><div class="recordbar"><input id="recordName" aria-label="记录名称" placeholder="开始练习后自动命名"><button id="renameRecord">改名</button></div><button id="save">保存记录</button><button id="export">导出报告</button></header>
+<main>
+<aside class="settings mobile-open">
+<div class="eyebrow">01 / SETUP</div><h2>选择练习区间</h2>
+<label>资产类别<select id="category"></select></label><label>资产<select id="asset"><option>BTCUSDT</option></select></label><p id="assetInfo" class="hint"></p><details><summary>数据下载与更新</summary><button id="updateData">更新免费数据</button><div id="dataStatus" class="hint">检查更新状态…</div></details>
+<label class="check"><input id="randomAsset" type="checkbox"> 在该类别内随机选资产</label><div class="pair"><label>随机种子<input id="seed" type="number" value="42"></label><label class="check"><input id="blind" type="checkbox"> 隐藏资产名称</label></div>
+<label>开始日期（UTC）<input id="start" type="date" value="2024-01-01" min="2020-01-01" max="2026-09-21"></label>
+<label>结束日期（不包含）<input id="end" type="date" value="2024-01-03" min="2020-01-02" max="2026-09-22"></label>
+<label><span id="cashCurrency">初始资金 / USD</span><input id="cash" type="number" value="10000" min="1"></label>
+<div class="pair"><label>每边手续费 %<input id="fee" type="number" value="0.05" min="0" step="0.01"></label><label>每边滑点 %<input id="slip" type="number" value="0.02" min="0" step="0.01"></label></div>
+<label class="check"><input id="hedging" type="checkbox" checked> 多空双开，独立保证金</label>
+<details><summary>保证金与额外成本</summary><div class="pair"><label>维持保证金 %<input id="maintenance" type="number" value="0.5" min="0.01" max="20" step="0.1"></label><label>强平费 %<input id="liqFee" type="number" value="0.1" min="0" max="10" step="0.01"></label></div><div class="pair"><label>每期资金费 %<input id="funding" type="number" value="0" step="0.001"></label><label>周期 / 小时<input id="fundingHours" type="number" value="8" min="1" max="24"></label></div><div class="pair"><label>借贷年利率 %<input id="borrow" type="number" value="0" min="0" step="0.1"></label><label>无风险年利率 %<input id="riskFree" type="number" value="0" step="0.1"></label></div><p class="hint">资金费/借贷费为固定模型。逐仓跳空超额损失记为模拟保险补偿。</p></details>
+<button id="create" class="primary wide">开始新练习 →</button>
+<label>恢复已保存记录<select id="saved"><option value="">选择记录</option></select></label><button id="restore" class="wide">恢复（策略默认停用）</button>
+<div class="divider"></div><div class="eyebrow">02 / INDICATORS</div><h2>技术指标</h2>
+<div class="indicator-add"><select id="indicatorType" aria-label="选择技术指标"></select><button id="addIndicator">添加</button></div>
+<p class="hint">每个指标可单独调参、复制、叠加；相同副图可共用时间轴。</p><div id="indicatorList"></div><button id="applyIndicators" class="wide">应用指标设置</button>
+<div class="divider"></div><label class="check"><input id="newsToggle" type="checkbox"> 显示新闻事件</label><label class="file">导入新闻 JSON<input id="newsFile" type="file" accept=".json"></label><p class="hint">需包含 title、known_at（带时区）、source。无合格事件包时保持为空。</p>
+</aside>
+<section class="workspace">
+<section class="metrics"><div><small id="equityLabel">账户净值 / USD</small><strong id="equity">10,000.00</strong></div><div><small>累计收益</small><strong id="returns">0.00%</strong></div><div><small>可用资金</small><strong id="available">10,000.00</strong></div><div><small>保证金占用</small><strong id="margin">0.00</strong></div><div><small>最大回撤</small><strong id="drawdown">0.00%</strong></div></section>
+<section class="chartpanel"><div class="charthead"><div><h1 id="chartTitle">BTC <span>/ USDT</span></h1><small id="clock">加载本地历史数据后开始</small></div><div class="charttools"><select id="timeframe"><option>1m</option><option>3m</option><option>5m</option><option>15m</option><option>30m</option><option>1h</option><option>4h</option><option>1d</option><option>1w</option><option>1M</option></select><input id="customTf" placeholder="如 7m" aria-label="自定义周期"><button id="applyTf">切换</button><button id="follow">回到当前</button><button id="fit">重置视图</button><button id="history">加载更早历史</button></div></div>
+<div id="chart"></div><div class="chartfoot"><span>左键拖动平移 · 滚轮缩放 · 拖动价格轴调节比例</span><a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">Charts by TradingView</a></div>
+<div class="playbar"><button id="play" class="primary">▶ 播放</button><button id="step">单步 +1 根</button><button id="jump">推进 60 根</button><select id="speed"><option value="1">1 根 / 秒</option><option value="5">5 根 / 秒</option><option value="20">20 根 / 秒</option></select><progress id="progress" value="0" max="1"></progress><span id="progressText">0 / 0</span></div></section>
+<section class="ticket"><div class="tradeheading"><strong>03 / 模拟交易</strong><small>下一根基础 K 线成交</small><span id="tradeCurrency">USD</span></div>
+<div class="tradefields"><label><span id="amountLabel">交易金额 / USD</span><input id="quantity" type="number" value="1000" min="0.01" step="100"></label>
+<label>金额类型<select id="amountMode"><option value="margin">投入保证金</option><option value="notional">名义成交额</option></select></label>
+<label>杠杆倍数<input id="leverage" type="number" value="2" min="1" max="100" step="1"></label>
+<label>订单类型<select id="orderType"><option value="market">市价</option><option value="limit">限价</option><option value="stop">突破</option></select></label>
+<label>条件价格<input id="orderPrice" type="number" placeholder="条件单必填" step="any"></label>
+<label>止损价格<input id="stop" type="number" placeholder="可选" step="any"></label><label>止盈价格<input id="take" type="number" placeholder="可选" step="any"></label>
+<button id="long" class="buy">买入 / 开多</button><button id="short" class="sell">卖出 / 开空</button></div>
+<div class="tradefoot"><span id="amountHint">保证金 × 杠杆 = 名义金额；手续费另计</span><div id="status" role="status">等待开始练习</div></div></section>
+<section class="lower"><div class="tabs"><button class="active" data-tab="positions">持仓与订单</button><button data-tab="strategy">Python 策略</button><button data-tab="report">回测报告</button><button data-tab="news">新闻事件</button></div>
+<div id="positions" class="tab"><div id="positionTable" class="empty">暂无持仓。</div><div id="pending" class="hint"></div><button id="cancelOrders">撤销待成交订单</button><div class="eyebrow">最近交易事件</div><div id="events" class="eventlog"></div></div>
+<div id="strategy" class="tab hidden"><div class="strategybar"><select id="strategySelect"></select><button id="openCode">在 VS Code 编辑</button><button id="saveCode">保存代码</button><button id="runStrategy" class="primary">启用策略</button><button id="stopStrategy">停用</button><button id="batch">快速回测至终点</button><button id="cancelBatch">取消批量回测</button></div><div class="pair"><label>策略触发周期<input id="strategyTf" value="1m"></label><label>额外上下文周期（逗号分隔）<input id="contextTfs" placeholder="5m,1h"></label></div><label>策略参数 JSON<textarea id="strategyParams" rows="3">{}</textarea></label><p class="hint">on_bar(ctx,state) 仅在所选周期完整收盘后触发；ctx.timeframes 为已收盘的多周期数据。仅运行可信 Python，修改后重新启用。</p><textarea id="code" spellcheck="false" aria-label="Python 策略代码"></textarea></div>
+<div id="report" class="tab hidden"><div class="strategybar"><button id="finish">结束并盯市</button><button id="finishClose">结束并平仓</button><button id="exportCsv">导出成交 CSV</button><button id="exportPng">保存报告图片</button><button id="exportHtml">保存完整报告 HTML</button><button id="branch">从当前状态分支练习</button></div><div id="reportMetrics"></div><div id="equityChart"></div><div id="drawdownChart"></div></div>
+<div id="news" class="tab hidden"><div id="newsList" class="empty">尚未导入合格新闻事件包。</div></div>
+</section></section>
+
+</main><script src="/static/lightweight-charts.js"></script><script src="/static/app.js?v=0.3.0.1"></script></body></html>

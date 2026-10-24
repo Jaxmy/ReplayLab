@@ -1,0 +1,10 @@
+[
+  {
+    "adapter":"csv", "id":"MY_ASSET", "name":"我的本地资产", "category":"custom",
+    "source":"data/custom/my_asset.csv", "time_column":"date", "timezone":"UTC",
+    "start":"2024-01-01", "end":"2024-12-31", "base":"1d", "currency":"USD",
+    "price_precision":2, "size_precision":0, "multiplier":1, "lot":1, "year_days":252,
+    "calendar":"源数据交易日", "research_only":true, "allow_gaps":true, "note":"自行核验的合成价格练习",
+    "default_fee":0.0003, "default_slippage":0.0002
+  }
+]

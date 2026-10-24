@@ -1,0 +1,15 @@
+.venv/
+node_modules/
+web/lightweight-charts.js
+vscode/media/lightweight-charts.js
+__pycache__/
+.pytest_cache/
+*.py[cod]
+sessions/*
+!sessions/.gitkeep
+data/*
+!data/.gitkeep
+config/assets.json
+reports/*
+!reports/.gitkeep
+vscode/*.vsix
