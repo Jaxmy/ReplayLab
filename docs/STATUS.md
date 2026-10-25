@@ -1,4 +1,4 @@
-# Replay Lab v0.3.1
+# Replay Lab v0.3.2
 
 Replay Lab combines local historical replay, simulated orders, configurable indicators, Python strategies, and report export. The browser and VS Code interfaces share one local service. Downloaded bars and user records remain in the project directory.
 
@@ -9,3 +9,5 @@ The bundled data sources are public and may limit availability, historical cover
 See [the README](../README.md) for installation, usage, data adapter instructions, and model limits. See [third-party notices](../THIRD_PARTY_NOTICES.md) for component licenses and data source notes.
 
 0.3.1 adds queued UI operations, pre-session indicator editing, date coverage correction, transactional session replacement, configurable causal pre-start history, and confirmed bulk record deletion with shared strategy snapshot retention. Regression tests cover both UI transports and isolated backend storage.
+
+0.3.2 keeps the newest candle visible after every replay advance, moves indicator readings outside the plot, and loads closed historical bars in the selected initial timeframe using bounded monthly aggregation. Prior record versions remain readable.

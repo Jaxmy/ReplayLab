@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Replay Lab · 本地交易练习</title><link rel="stylesheet" href="/static/style.css?v=0.3.1"></head>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Replay Lab · 本地交易练习</title><link rel="stylesheet" href="/static/style.css?v=0.3.2"></head>
 <body>
 <header><div class="brand"><span class="mark">R</span><div>REPLAY LAB<small>本地交易练习 · NautilusTrader</small></div></div><div class="topnote"><span class="dot"></span> 本地运行 <span class="tag">开发预览版</span></div><button id="settingsToggle">数据与指标</button><div class="recordbar"><input id="recordName" aria-label="记录名称" placeholder="开始练习后自动命名"><button id="renameRecord">改名</button></div><button id="save">保存记录</button><button id="export">导出报告</button></header>
 <main>
@@ -13,7 +13,7 @@
 <div class="pair"><label>每边手续费 %<input id="fee" type="number" value="0.05" min="0" step="0.01"></label><label>每边滑点 %<input id="slip" type="number" value="0.02" min="0" step="0.01"></label></div>
 <label class="check"><input id="hedging" type="checkbox" checked> 多空双开，独立保证金</label>
 <details><summary>保证金与额外成本</summary><div class="pair"><label>维持保证金 %<input id="maintenance" type="number" value="0.5" min="0.01" max="20" step="0.1"></label><label>强平费 %<input id="liqFee" type="number" value="0.1" min="0" max="10" step="0.01"></label></div><div class="pair"><label>每期资金费 %<input id="funding" type="number" value="0" step="0.001"></label><label>周期 / 小时<input id="fundingHours" type="number" value="8" min="1" max="24"></label></div><div class="pair"><label>借贷年利率 %<input id="borrow" type="number" value="0" min="0" step="0.1"></label><label>无风险年利率 %<input id="riskFree" type="number" value="0" step="0.1"></label></div><p class="hint">资金费/借贷费为固定模型。逐仓跳空超额损失记为模拟保险补偿。</p></details>
-<label>练习前历史 / 基础 K 线根数<input id="warmupBars" type="number" value="300" min="1" max="5000" step="1"></label><p class="hint">默认展示开始前 300 根已收盘 K 线（最多 5000 根）；数据不足时展示全部可用历史。预览不会产生交易或收益。</p><div id="operationStatus" class="hint" role="status" aria-live="polite">准备加载…</div><button id="create" class="primary wide">开始新练习 →</button>
+<label>开始时 K 线级别<select id="initialTimeframe"><option value="1m">1m</option></select></label><label>练习前历史 / 所选级别 K 线根数<input id="warmupBars" type="number" value="300" min="1" max="5000" step="1"></label><p class="hint">默认展示所选级别开始前的 300 根已收盘 K 线（最多 5000 根）；数据不足时展示全部可用历史。预览不会产生交易或收益。</p><div id="operationStatus" class="hint" role="status" aria-live="polite">准备加载…</div><button id="create" class="primary wide">开始新练习 →</button>
 <details id="recordMenu"><summary>历史记录（选择 / 批量管理）</summary><label>恢复记录<select id="saved"><option value="">选择记录</option></select></label><button id="restore" class="wide">恢复记录及策略状态</button><label class="check"><input id="selectAllRecords" type="checkbox">全选历史记录</label><div id="recordList"></div><button id="deleteRecords" class="wide" disabled>删除已勾选（0）</button><div id="deleteConfirm" hidden><p class="hint">将永久删除勾选的记录文件、对应旧备份及不再使用的策略快照，无法恢复。被选中的当前练习将关闭；导出报告保留。</p><button id="confirmDelete">确认永久删除</button><button id="cancelDelete">取消</button></div></details>
 <div class="divider"></div><div class="eyebrow">02 / INDICATORS</div><h2>技术指标</h2>
 <div class="indicator-add"><select id="indicatorType" aria-label="选择技术指标"></select><button id="addIndicator">添加</button></div>
@@ -23,7 +23,7 @@
 <section class="workspace">
 <section class="metrics"><div><small id="equityLabel">账户净值 / USD</small><strong id="equity">10,000.00</strong></div><div><small>累计收益</small><strong id="returns">0.00%</strong></div><div><small>可用资金</small><strong id="available">10,000.00</strong></div><div><small>保证金占用</small><strong id="margin">0.00</strong></div><div><small>最大回撤</small><strong id="drawdown">0.00%</strong></div></section>
 <section class="chartpanel"><div class="charthead"><div><h1 id="chartTitle">BTC <span>/ USDT</span></h1><small id="clock">加载本地历史数据后开始</small></div><div class="charttools"><select id="timeframe"><option>1m</option><option>3m</option><option>5m</option><option>15m</option><option>30m</option><option>1h</option><option>4h</option><option>1d</option><option>1w</option><option>1M</option></select><input id="customTf" placeholder="如 7m" aria-label="自定义周期"><button id="applyTf">切换</button><button id="follow">回到当前</button><button id="fit">重置视图</button><button id="history">加载更早历史</button></div></div>
-<div id="chart"></div><div class="chartfoot"><span>左键拖动平移 · 滚轮缩放 · 拖动价格轴调节比例</span><a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">Charts by TradingView</a></div>
+<div id="chart"></div><div id="indicatorLegend" aria-label="指标最新读数"></div><div class="chartfoot"><span>左键拖动平移 · 滚轮缩放 · 拖动价格轴调节比例</span><a href="https://www.tradingview.com/" target="_blank" rel="noreferrer">Charts by TradingView</a></div>
 <div class="playbar"><button id="play" class="primary">▶ 播放</button><button id="step">单步 +1 根</button><button id="jump">推进 60 根</button><select id="speed"><option value="1">1 根 / 秒</option><option value="5">5 根 / 秒</option><option value="20">20 根 / 秒</option></select><progress id="progress" value="0" max="1"></progress><span id="progressText">0 / 0</span></div></section>
 <section class="ticket"><div class="tradeheading"><strong>03 / 模拟交易</strong><small>下一根基础 K 线成交</small><span id="tradeCurrency">USD</span></div>
 <div class="tradefields"><label><span id="amountLabel">交易金额 / USD</span><input id="quantity" type="number" value="1000" min="0.01" step="100"></label>
@@ -41,4 +41,4 @@
 <div id="news" class="tab hidden"><div id="newsList" class="empty">尚未导入合格新闻事件包。</div></div>
 </section></section>
 
-</main><script src="/static/lightweight-charts.js"></script><script src="/static/app.js?v=0.3.1"></script></body></html>
+</main><script src="/static/lightweight-charts.js"></script><script src="/static/app.js?v=0.3.2"></script></body></html>

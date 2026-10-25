@@ -1,0 +1,42 @@
+name: Build and publish release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Build chart resources and VS Code extension
+        shell: bash
+        run: |
+          npm ci --ignore-scripts
+          cp node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js web/lightweight-charts.js
+          cp web/lightweight-charts.js vscode/media/lightweight-charts.js
+          cd vscode
+          ../node_modules/.bin/vsce package --no-dependencies
+      - name: Package and publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/package_release.py
+          VERSION=$(python -c "import pathlib,re; print(re.search(r\"^VERSION='([^']+)'\",pathlib.Path('app/session.py').read_text(),re.M)[1])")
+          TAG="v$VERSION"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "$TAG" ]]; then
+            echo "Source version and release tag do not match" >&2
+            exit 1
+          fi
+          NOTES="docs/releases/$TAG.md"
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "Replay Lab $TAG" --notes-file "$NOTES" --latest
+          gh release upload "$TAG" "dist/Replay-Lab-$TAG-windows-x64.zip" "dist/Replay-Lab-$TAG-windows-x64.zip.sha256" --clobber

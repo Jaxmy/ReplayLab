@@ -2,12 +2,12 @@ from pathlib import Path
 from collections import deque
 import hashlib,json,math,queue,subprocess,sys,threading,uuid,bisect
 import pandas as pd
-from app.data import read_bars,chart_data,duration,aggregate,rule,validate_timeframe,indicator_config,select_asset,utc,trading_meta
+from app.data import read_bars,read_preview,chart_data,duration,aggregate,rule,validate_timeframe,indicator_config,select_asset,utc,trading_meta,timeframes
 from app.engine import Broker
 ROOT=Path(__file__).resolve().parents[1]
 MODULE_ROOT=ROOT
 from app import indicators as ind
-VERSION='0.3.1'
+VERSION='0.3.2'
 
 
 def migrate_records():
@@ -67,12 +67,22 @@ class Session:
         self.id=uuid.uuid4().hex[:12];self.config=dict(config)
         instances=ind.normalize(config.get('indicator_instances',ind.defaults()))
         if config.get('random_asset'):
-            self.config['symbol'],self.config['pool_size']=select_asset(config['category'],config['start'],config['end'],config.get('seed',0))
+            self.config['symbol'],self.config['pool_size']=select_asset(config['category'],config['start'],config['end'],config.get('seed',0),config.get('record_timeframe'))
         self.data,self.cursor,self.meta,self.fingerprints=read_bars(config['start'],config['end'],self.config.get('symbol','BTCUSDT'),warmup=config.get('warmup_bars',300),with_meta=True,meta_override=config.get('_snapshot_meta'))
         self.window_hash=hashlib.sha256(pd.util.hash_pandas_object(self.data,index=True).values.tobytes()).hexdigest()
         if config.get('_snapshot_meta'):self.meta=config['_snapshot_meta']
         else:self.meta=trading_meta(self.meta)
         self.record_timeframe=config.get('record_timeframe') or self.meta['base']
+        validate_timeframe(self.record_timeframe,self.meta['base'])
+        self.preview_timeframe=config.get('warmup_timeframe')
+        self.preview=None;self.preview_hash=None
+        if self.preview_timeframe:
+            validate_timeframe(self.preview_timeframe,self.meta['base'])
+            if self.preview_timeframe==self.meta['base']:
+                self.preview=self.data.iloc[:self.cursor+1].copy()
+            else:
+                self.preview=read_preview(config['start'],self.config.get('symbol','BTCUSDT'),self.preview_timeframe,config.get('warmup_bars',300),meta_override=config.get('_snapshot_meta'))
+            self.preview_hash=hashlib.sha256(pd.util.hash_pandas_object(self.preview,index=True).values.tobytes()).hexdigest()
         migrate_records()
         directory=ROOT/'sessions';directory.mkdir(parents=True,exist_ok=True)
         # Monotonically allocate a human-readable default name within this asset/timeframe.
@@ -112,7 +122,7 @@ class Session:
 
     def context_frame(self,tf):
         if tf not in self.context_cache:
-            validate_timeframe(tf,self.meta['base']);f=aggregate(self.data,tf)
+            validate_timeframe(tf,self.meta['base']);f=self.merge_preview(aggregate(self.data,tf),tf)
             ends=f.index+pd.tseries.frequencies.to_offset(rule(tf)) if tf!=self.meta['base'] else f.bar_end
             # Offset exchange hourly candles may close after a UTC bucket boundary.
             # A higher-timeframe strategy cannot see that candle before its real close.
@@ -212,12 +222,24 @@ class Session:
           'limitations':['通用合成账户，实际交易所规则与标记价格未复现','OHLC 采用保守触发；无订单簿排队/容量约束',
             '资金费/借贷费为用户设定固定模型；保险赔付为模拟记账，不代表真实赔付','证券日线为价格练习，不包含 T+1、税费、分红或换月校正']}
 
+    def merge_preview(self,frame,timeframe,initial=False):
+        if self.preview is not None and timeframe==self.preview_timeframe:
+            frame=pd.concat([self.preview,frame[~frame.index.isin(self.preview.index)]]).sort_index()
+            frame.index=pd.to_datetime(frame.index,utc=True)
+            if initial and self.cursor==self.initial_cursor:
+                offset=pd.tseries.frequencies.to_offset(rule(timeframe))
+                frame=frame[frame.index+offset<=utc(self.config['start'])]
+            frame.attrs['base']=timeframe
+        return frame
+
     def chart(self,timeframe,params=None,before=None,limit=2000):
         validate_timeframe(timeframe,self.meta['base']);conf=indicator_config(params or self.chart_params)
         key=(timeframe,json.dumps(conf,sort_keys=True),json.dumps(self.indicator_instances,sort_keys=True),before,limit)
         if key not in self.timeframe_cache:
-            known=self.data.iloc[:self.cursor+1];result=chart_data(known,timeframe,conf,before,limit)
-            frame=aggregate(known,timeframe);idx=pd.to_datetime([x['time'] for x in result['candles']],unit='s',utc=True)
+            known=self.data.iloc[:self.cursor+1];frame=self.merge_preview(aggregate(known,timeframe),timeframe,initial=True)
+            frame.attrs['base']=timeframe
+            result=chart_data(frame,timeframe,conf,before,limit)
+            idx=pd.to_datetime([x['time'] for x in result['candles']],unit='s',utc=True)
             result['indicator_series']=ind.render(frame,self.indicator_instances,idx)
             self.timeframe_cache[key]=result
         return self.timeframe_cache[key]
@@ -226,11 +248,13 @@ class Session:
         tf=timeframe or self.record_timeframe or self.meta['base'];done=self.cursor>=len(self.data)-1 or self.finished_explicit
         blind=self.config.get('blind',False) and not done
         config={k:v for k,v in self.config.items() if not k.startswith('_')};meta=dict(self.meta)
+        meta['timeframes']=timeframes(self.meta['base'])
         if blind:config['symbol']='隐藏资产';meta.update(id='隐藏资产',name='盲测练习',source='隐藏')
         now=int(self.data.iloc[self.cursor].bar_end.timestamp())-1 if self.cursor>=0 else int(utc(self.config['start']).timestamp())-1
+        preview=self.preview if self.preview is not None else self.data.iloc[:self.initial_cursor+1]
         return {'id':self.id,'name':'盲测记录' if blind else self.record_name,'record_timeframe':self.record_timeframe,'custom_name':self.custom_name,'indicator_instances':self.indicator_instances,'config':config,'asset':meta,'blind':blind,'cursor':self.cursor-self.initial_cursor,
           'total':len(self.data)-self.initial_cursor-1,'finished':done,'time':now,'timeframe':tf,'chart':self.chart(tf,limit=max(2000,self.config.get('warmup_bars',300)) if self.cursor==self.initial_cursor else 2000),
-          'warmup':{'requested':self.config.get('warmup_bars',300),'available':self.initial_cursor+1,'start':int(self.data.index[0].timestamp()) if self.initial_cursor>=0 else None,'end':int(self.data.iloc[self.initial_cursor].bar_end.timestamp()) if self.initial_cursor>=0 else None},
+          'warmup':{'requested':self.config.get('warmup_bars',300),'available':len(preview),'timeframe':self.preview_timeframe or self.meta['base'],'start':int(preview.index[0].timestamp()) if len(preview) else None,'end':int(preview.iloc[-1].bar_end.timestamp()) if len(preview) else None},
           'account':self.broker.account(),'positions':self.broker.positions(),'pending':self.broker.pending,
           'events':self.broker.events[-100:],'equity':self.curve[-10000:],'report':self.report(),'strategy':self.strategy_name,
           'strategy_settings':{k:v for k,v in (self.strategy_info or {}).items() if k not in ('code',)},'error':self.error,
@@ -242,6 +266,7 @@ class Session:
         if self.worker:strategy={**self.strategy_info,'state':self.worker.snapshot(),'last_trigger':self.last_trigger,'event_cursor':self.event_cursor}
         payload={'version':2,'platform':VERSION,'engine':'nautilus_trader 1.231.0','config':self.config,'meta':self.meta,
           'fingerprints':self.fingerprints,'actions':self.actions,'news':self.news,'strategy':strategy,'indicators':self.chart_params,'indicator_layout':self.chart_layout,'indicator_instances':self.indicator_instances,'window_hash':self.window_hash,'fingerprints_signature':hashlib.sha256(json.dumps(self.fingerprints,sort_keys=True).encode()).hexdigest(),'name':self.record_name,'record_timeframe':self.record_timeframe,'custom_name':self.custom_name,'sequence':self.sequence}
+        if self.preview_hash:payload['preview_hash']=self.preview_hash
         temp=path.with_suffix('.tmp');temp.write_text(json.dumps(payload,ensure_ascii=False,allow_nan=False),encoding='utf-8');temp.replace(path)
         return path.name
 
@@ -249,9 +274,10 @@ class Session:
     def restore(cls,name):
         if Path(name).name!=name or not name.endswith('.json'):raise ValueError('无效记录名称')
         p=json.loads((ROOT/'sessions'/name).read_text(encoding='utf-8'))
-        if p.get('version')!=2 or p.get('platform') not in ('0.2.0','0.3.0',VERSION):raise ValueError('旧版记录不兼容新逐仓模型；保留原文件，请新建练习')
+        if p.get('version')!=2 or p.get('platform') not in ('0.2.0','0.3.0','0.3.1',VERSION):raise ValueError('旧版记录不兼容新逐仓模型；保留原文件，请新建练习')
         config={**p['config'],'random_asset':False,'_snapshot_meta':p['meta']};s=cls(config)
         try:
+            if p.get('preview_hash') and p['preview_hash']!=s.preview_hash:raise ValueError('练习前历史数据内容已变化，拒绝恢复')
             if p.get('window_hash'):
                 signature=hashlib.sha256(json.dumps(p['fingerprints'],sort_keys=True).encode()).hexdigest()
                 if p['window_hash']!=s.window_hash or signature!=p.get('fingerprints_signature'):raise ValueError('数据内容或记录校验不一致，拒绝恢复')

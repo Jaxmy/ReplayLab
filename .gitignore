@@ -13,3 +13,4 @@ config/assets.json
 reports/*
 !reports/.gitkeep
 vscode/*.vsix
+dist/

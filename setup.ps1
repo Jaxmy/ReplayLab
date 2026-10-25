@@ -2,10 +2,10 @@ $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $PSScriptRoot
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue) -or -not (Get-Command npm -ErrorAction SilentlyContinue)) {
-    throw '安装需要 Node.js 18 或更新版本（包含 npm）。安装后重新打开 PowerShell 再运行本脚本。'
+    throw '安装需要 Node.js 22 或更新版本（包含 npm）。安装后重新打开 PowerShell 再运行本脚本。'
 }
 $nodeVersion = (& node --version).TrimStart('v') -split '\.'
-if ([int]$nodeVersion[0] -lt 18) { throw '安装需要 Node.js 18 或更新版本。' }
+if ([int]$nodeVersion[0] -lt 22) { throw '安装需要 Node.js 22 或更新版本。' }
 
 $pythonArgs = $null
 if (Get-Command py -ErrorAction SilentlyContinue) {

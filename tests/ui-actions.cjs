@@ -18,8 +18,8 @@ async function main(){
    w.addEventListener('error',e=>errors.push(e.error));w.structuredClone=structuredClone;w.AbortController=AbortController;
    w.URL.createObjectURL=()=>{exports++;return 'blob:test';};w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=function(){};
    w.HTMLCanvasElement.prototype.getContext=()=>new Proxy({},{get:()=>()=>{}});w.HTMLCanvasElement.prototype.toDataURL=()=>png;
-   const panes=[{setHeight(){}}],time={getVisibleLogicalRange:()=>({from:0,to:50}),setVisibleLogicalRange(){},scrollToRealTime(){},fitContent(){}};
-   const chart=()=>({addSeries:()=>({setData(){},priceScale:()=>({applyOptions(){}})}),removeSeries(){},panes:()=>panes,timeScale:()=>time,priceScale:()=>({applyOptions(){}}),takeScreenshot:()=>doc.createElement('canvas'),remove(){}});
+   let visible={from:0,to:50};const ranges=[],seriesOptions=[];const panes=[{setHeight(){}}],time={getVisibleLogicalRange:()=>visible,setVisibleLogicalRange(r){visible=r;ranges.push(r);},scrollToRealTime(){},fitContent(){}};
+   const chart=()=>({addSeries:(kind,options)=>{seriesOptions.push(options);return ({setData(){},priceScale:()=>({applyOptions(){}})});},removeSeries(){},panes:()=>panes,timeScale:()=>time,priceScale:()=>({applyOptions(){}}),takeScreenshot:()=>doc.createElement('canvas'),remove(){}});
    w.LightweightCharts={createChart:chart,createSeriesMarkers:()=>({setMarkers(){}})};
    async function request(p,options={}){calls.push({path:p,method:options.method||'GET',body:options.body?JSON.parse(options.body):undefined});return fetch(base+p,options);}
    w.fetch=request;
@@ -39,16 +39,16 @@ async function main(){
     await click('[data-remove]');assert.equal(doc.querySelectorAll('.indicator-card').length,5);
     doc.querySelector('[data-instance-param]').value='7';await click('[data-apply]');
     await click('#applyIndicators');
-    await click('#create');assert.match(doc.querySelector('#clock').textContent,/2023-12-31/);
+    change('#initialTimeframe','5m');await click('#create');assert.match(doc.querySelector('#clock').textContent,/2023-12-31/);
     let live=await (await fetch(base+'/api/sessions')).json(),sid=live[0].id;
-    let state=await (await fetch(base+'/api/sessions/'+sid)).json();assert.equal(state.warmup.available,300);assert.equal(state.indicator_instances.length,5);assert.equal(state.indicator_instances[0].params.period,7);
+    let state=await (await fetch(base+'/api/sessions/'+sid)).json();assert.equal(state.warmup.available,300);assert.equal(state.timeframe,'5m');assert.equal(state.chart.candles.length,300);assert.equal(doc.querySelector('#timeframe').value,'5m');assert(seriesOptions.filter(x=>x.priceLineVisible===false).every(x=>x.lastValueVisible===false&&x.title===''));assert(doc.querySelector('#indicatorLegend').textContent.includes('SMA'));const beforePan=state.chart.candles.length-1;visible={from:-1000,to:-900};doc.querySelector('#chart').dispatchEvent(new w.Event('pointerdown'));await click('#step');assert(ranges.at(-1).to>beforePan);assert.equal(ranges.at(-1).to-ranges.at(-1).from,100);assert.equal(state.indicator_instances.length,5);assert.equal(state.indicator_instances[0].params.period,7);
     // Checkbox click bubbles before change; it must still send the new enabled flag.
     const enabled=doc.querySelector('[data-enable]');enabled.click();await settle();
     state=await (await fetch(base+'/api/sessions/'+sid)).json();assert.equal(state.indicator_instances[0].enabled,false);
     const toggles=doc.querySelectorAll('[data-enable]');toggles[1].click();toggles[2].click();await settle();
     state=await (await fetch(base+'/api/sessions/'+sid)).json();assert.equal(state.indicator_instances[1].enabled,false);assert.equal(state.indicator_instances[2].enabled,false);
     doc.querySelector('#step').click();doc.querySelector('#step').click();await settle();
-    state=await (await fetch(base+'/api/sessions/'+sid)).json();assert.equal(state.cursor,2,'rapid commands must not disappear');
+    state=await (await fetch(base+'/api/sessions/'+sid)).json();assert.equal(state.cursor,3,'rapid commands must not disappear');
     await click('#play');await settle();await click('#play');await click('#jump');
     change('#timeframe','5m');await settle();doc.querySelector('#customTf').value='7m';await click('#applyTf');
     await click('#history');await click('#follow');await click('#fit');await click('#settingsToggle');
@@ -74,6 +74,6 @@ async function main(){
     assert(!errors.length,String(errors));console.log(`${bridge?'VS Code bridge':'Browser HTTP'}: all button bindings, create, indicators, checkbox, queued actions, trading, strategy, reports, restore, delete and warmup PASS (${calls.length} API requests)`);
    }finally{dom.window.close();}
   }
- }finally{backend.kill();}
+ }catch(e){e.message+='\nBackend: '+log.slice(-5500);throw e;}finally{backend.kill();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

@@ -2,7 +2,7 @@
   "name": "local-replay-lab",
   "displayName": "Local Replay Lab 本地交易练习",
   "description": "Local historical trading replay with Python strategies and NautilusTrader",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "local-replay",
   "engines": {
     "vscode": "^1.98.0"

@@ -54,6 +54,7 @@ class Config(BaseModel):
     indicators:dict|None=None
     record_timeframe:str|None=None
     warmup_bars:int=Field(default=300,ge=1,le=5000)
+    warmup_timeframe:str|None=None
     indicator_instances:list[dict]|None=None
     replace_session_id:str|None=None
 class DeleteRecords(BaseModel):
@@ -118,6 +119,7 @@ def create(c:Config):
         if previous:idle(previous.id)
         if len(sessions)>=5 and previous is None:raise ValueError('最多 5 个记录，请先关闭旧记录')
         config=c.model_dump(exclude_none=True);config.pop('replace_session_id',None)
+        if c.record_timeframe and not c.warmup_timeframe:config['warmup_timeframe']=c.record_timeframe
         s=Session(config)
         try:
             result=s.view();hold(s)

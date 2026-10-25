@@ -9,3 +9,5 @@ html,body{height:100%;overflow:hidden}header{height:56px;padding:8px 16px;gap:8p
 @media(max-width:560px){header{height:88px}main{height:calc(100vh - 88px)}}
 
 #recordList{max-height:230px;overflow:auto;margin:10px 0}.record-option{display:flex;gap:7px;align-items:flex-start;padding:6px 2px;overflow-wrap:anywhere}.record-option input{width:auto;flex:none;margin-top:3px}.record-option small{display:block;color:var(--muted);font-size:10px}#operationStatus{position:sticky;top:0;background:var(--bg);z-index:2;padding:7px 0}button:disabled{opacity:.5;cursor:wait}[hidden]{display:none!important}
+
+#indicatorLegend{display:flex;flex-wrap:wrap;gap:6px 14px;max-height:72px;overflow:auto;padding:6px 10px;color:var(--muted);font-size:11px}#indicatorLegend span{white-space:nowrap}#indicatorLegend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}#indicatorLegend b{color:var(--text);font-weight:500}

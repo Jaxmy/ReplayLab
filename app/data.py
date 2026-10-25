@@ -9,7 +9,7 @@ ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/'data'/'legacy-btc'
 LEGACY_MANIFEST=ROOT/'data'/'legacy-manifest.json'
 LEGACY_ROOT=ROOT/'data'/'legacy'
-PERIODS={'1m':'1min','3m':'3min','5m':'5min','15m':'15min','30m':'30min','1h':'1h','4h':'4h','1d':'1D','1w':'W-MON','1M':'MS'}
+PERIODS={'1m':'1min','3m':'3min','5m':'5min','10m':'10min','15m':'15min','30m':'30min','1h':'1h','2h':'2h','4h':'4h','6h':'6h','12h':'12h','1d':'1D','1w':'W-MON','1M':'MS'}
 DEFAULT_INDICATORS={'sma20':20,'sma60':60,'ema20':20,'rsi':14,'bb':20,'bb_std':2.,'atr':14,'macd_fast':12,'macd_slow':26,'macd_signal':9}
 def utc(v):
     t=pd.Timestamp(v)
@@ -108,7 +108,7 @@ def adapters():
             if m['adapter'] not in PROVIDERS:raise ValueError('未注册的数据适配器')
             result[m['id']]=PROVIDERS[m['adapter']](m)
     return result
-def timeframes(base):return list(PERIODS) if base=='1m' else ['1h','4h','1d','1w','1M'] if base=='1h' else ['1d','1w','1M']
+def timeframes(base):return list(PERIODS) if base=='1m' else ['1h','2h','4h','6h','12h','1d','1w','1M'] if base=='1h' else ['1d','1w','1M']
 def trading_meta(meta):
     m=dict(meta);m['native_currency']=m['currency'];m['currency']='CNY' if m['category'] in ('index_cn','etf','futures') else 'USD'
     if m['category'].startswith('index'):
@@ -125,9 +125,15 @@ def coverage(meta):
     lo,hi=utc(meta['start']),utc(meta['end'])+duration(meta['base'])
     if meta.get('allow_gaps') and meta['category']!='crypto':lo=lo.normalize();hi=utc(meta['end']).normalize()+pd.Timedelta('1D')
     return lo,hi
-def select_asset(category,start,end,seed):
+def select_asset(category,start,end,seed,timeframe=None):
     lo,hi=utc(start),utc(end)
     pool=[m for m in catalog() if m['category']==category and coverage(m)[0]<=lo and coverage(m)[1]>=hi]
+    if timeframe:
+        compatible=[]
+        for m in pool:
+            try:validate_timeframe(timeframe,m['base']);compatible.append(m)
+            except ValueError:continue
+        pool=compatible
     random.Random(seed).shuffle(pool)
     for m in pool:
         try:read_bars(start,end,m['id']);return m['id'],len(pool)
@@ -153,6 +159,43 @@ def read_bars(start,end,symbol='BTCUSDT',warmup=300,with_meta=False,meta_overrid
     if base=='1m' and not a.meta.get('allow_gaps') and (d.index.to_series().diff().dropna()!=duration(base)).any():raise ValueError('分钟源存在未标记缺口')
     cursor=int((d.bar_end<=start).sum())-1
     return (d,cursor,dict(a.meta),a.fingerprint()) if with_meta else (d,cursor)
+
+def read_preview(start,symbol,timeframe,count,meta_override=None):
+    """Aggregate pre-start history a month at a time, keeping memory bounded.
+
+    Do not load years of minute rows just to display a few hundred daily bars.
+    Adjacent month summaries are aggregated again to join weeks spanning months.
+    """
+    start=utc(start)
+    a=(BinanceParquet() if meta_override and meta_override.get('source')==str(SOURCE) else PROVIDERS.get(meta_override.get('adapter','csv'),CSVAdapter)(meta_override) if meta_override else get_adapter(symbol))
+    validate_timeframe(timeframe,a.meta['base'])
+    offset=pd.tseries.frequencies.to_offset(rule(timeframe));lower=coverage(a.meta)[0]
+    edge=start;parts=[];complete=pd.DataFrame()
+    while edge>lower:
+        month=edge.normalize().replace(day=1)
+        if month==edge:month=month-pd.offsets.MonthBegin(1)
+        lo=max(month,lower)
+        try:raw=a.read(lo,edge,0)
+        except ValueError as exc:
+            if '无数据' not in str(exc) and '没有本地行情' not in str(exc):raise
+            raw=pd.DataFrame()
+        if not raw.empty:
+            raw=validate_frame(raw);raw['bar_end']=raw.index+duration(a.meta['base'])
+            raw=raw[(raw.index>=lo)&(raw.bar_end<=start)]
+            raw.attrs['base']=a.meta['base']
+            if not raw.empty:parts.append(aggregate(raw,timeframe))
+        if parts:
+            merged=pd.concat(parts).sort_index();merged.attrs['base']=a.meta['base']
+            # Force a second aggregation even when display and base match.
+            merged.attrs['base']='preview-partitions'
+            frame=aggregate(merged,timeframe)
+            complete=frame[(frame.index>=lo)&(frame.index+offset<=start)]
+            if len(complete)>=count:break
+        edge=lo
+    if complete.empty:
+        complete=pd.DataFrame(columns=['open','high','low','close','volume','is_binance_observed','bar_end'],index=pd.DatetimeIndex([],tz='UTC'))
+    complete=complete.tail(count).copy();complete.attrs['base']=timeframe
+    return complete
 def aggregate(known,timeframe):
     if timeframe==known.attrs.get('base','1m'):return known.copy()
     rules={'open':'first','high':'max','low':'min','close':'last','volume':'sum','is_binance_observed':'all'}
