@@ -7,7 +7,7 @@ from app.engine import Broker
 ROOT=Path(__file__).resolve().parents[1]
 MODULE_ROOT=ROOT
 from app import indicators as ind
-VERSION='0.3.0'
+VERSION='0.3.1'
 
 
 def migrate_records():
@@ -65,9 +65,10 @@ class StrategyProcess:
 class Session:
     def __init__(self,config):
         self.id=uuid.uuid4().hex[:12];self.config=dict(config)
+        instances=ind.normalize(config.get('indicator_instances',ind.defaults()))
         if config.get('random_asset'):
             self.config['symbol'],self.config['pool_size']=select_asset(config['category'],config['start'],config['end'],config.get('seed',0))
-        self.data,self.cursor,self.meta,self.fingerprints=read_bars(config['start'],config['end'],self.config.get('symbol','BTCUSDT'),with_meta=True,meta_override=config.get('_snapshot_meta'))
+        self.data,self.cursor,self.meta,self.fingerprints=read_bars(config['start'],config['end'],self.config.get('symbol','BTCUSDT'),warmup=config.get('warmup_bars',300),with_meta=True,meta_override=config.get('_snapshot_meta'))
         self.window_hash=hashlib.sha256(pd.util.hash_pandas_object(self.data,index=True).values.tobytes()).hexdigest()
         if config.get('_snapshot_meta'):self.meta=config['_snapshot_meta']
         else:self.meta=trading_meta(self.meta)
@@ -94,7 +95,7 @@ class Session:
           funding_hours=config.get('funding_hours',8),borrow_apr=config.get('borrow_apr',0.),maintenance=config.get('maintenance',.005))
         self.actions=[];self.curve=[];self.worker=None;self.strategy_name=None;self.strategy_info=None;self.error=None
         self.news=[];self.chart_params=indicator_config(config.get('indicators'));self.timeframe_cache={};self.context_cache={}
-        self.chart_layout={};self.indicator_instances=ind.defaults()
+        self.chart_layout={};self.indicator_instances=instances
         self.event_cursor=0;self.last_trigger=None;self.finished_explicit=False;self.last_saved_step=0
         if self.cursor>=0:self.broker.tick(self.data.iloc[self.cursor].close,int(self.data.iloc[self.cursor].bar_end.value)-1)
 
@@ -228,7 +229,8 @@ class Session:
         if blind:config['symbol']='隐藏资产';meta.update(id='隐藏资产',name='盲测练习',source='隐藏')
         now=int(self.data.iloc[self.cursor].bar_end.timestamp())-1 if self.cursor>=0 else int(utc(self.config['start']).timestamp())-1
         return {'id':self.id,'name':'盲测记录' if blind else self.record_name,'record_timeframe':self.record_timeframe,'custom_name':self.custom_name,'indicator_instances':self.indicator_instances,'config':config,'asset':meta,'blind':blind,'cursor':self.cursor-self.initial_cursor,
-          'total':len(self.data)-self.initial_cursor-1,'finished':done,'time':now,'timeframe':tf,'chart':self.chart(tf),
+          'total':len(self.data)-self.initial_cursor-1,'finished':done,'time':now,'timeframe':tf,'chart':self.chart(tf,limit=max(2000,self.config.get('warmup_bars',300)) if self.cursor==self.initial_cursor else 2000),
+          'warmup':{'requested':self.config.get('warmup_bars',300),'available':self.initial_cursor+1,'start':int(self.data.index[0].timestamp()) if self.initial_cursor>=0 else None,'end':int(self.data.iloc[self.initial_cursor].bar_end.timestamp()) if self.initial_cursor>=0 else None},
           'account':self.broker.account(),'positions':self.broker.positions(),'pending':self.broker.pending,
           'events':self.broker.events[-100:],'equity':self.curve[-10000:],'report':self.report(),'strategy':self.strategy_name,
           'strategy_settings':{k:v for k,v in (self.strategy_info or {}).items() if k not in ('code',)},'error':self.error,
@@ -247,7 +249,7 @@ class Session:
     def restore(cls,name):
         if Path(name).name!=name or not name.endswith('.json'):raise ValueError('无效记录名称')
         p=json.loads((ROOT/'sessions'/name).read_text(encoding='utf-8'))
-        if p.get('version')!=2 or p.get('platform') not in ('0.2.0',VERSION):raise ValueError('旧版记录不兼容新逐仓模型；保留原文件，请新建练习')
+        if p.get('version')!=2 or p.get('platform') not in ('0.2.0','0.3.0',VERSION):raise ValueError('旧版记录不兼容新逐仓模型；保留原文件，请新建练习')
         config={**p['config'],'random_asset':False,'_snapshot_meta':p['meta']};s=cls(config)
         try:
             if p.get('window_hash'):

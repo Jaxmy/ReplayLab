@@ -6,7 +6,7 @@ Replay Lab 是一套运行在 Windows 本机的历史行情练习工具。它把
 
 ## 下载与安装
 
-在 GitHub 的 **Releases** 页面下载 `Replay-Lab-v0.3.0-windows-x64.zip`，解压到一个有写入权限的文件夹。压缩包内包含项目代码、VS Code 扩展安装包和首次安装脚本，不含历史行情数据库与用户记录。
+可直接下载 [main 分支源码 ZIP](https://github.com/Jaxmy/ReplayLab/archive/refs/heads/main.zip)，解压到有写入权限的文件夹，再运行 `setup.ps1` 安装依赖、生成图表资源和 VS Code 扩展安装包。如果 Releases 提供 `Replay-Lab-v0.3.1-windows-x64.zip`，其中另含预先构建的扩展包。源码和发布包均不包含个人历史行情数据库与练习记录。
 
 需要 Windows 10/11、Python 3.12 或 3.13、Node.js 18 或更新版本（含 npm），并联网完成首次依赖安装。Node.js 用于安装图表库、构建 VS Code 扩展和解码中国指数历史数据。
 
@@ -32,10 +32,10 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 **浏览器：**双击 `start-browser.cmd`，应用会启动本地服务并打开 <http://127.0.0.1:8765/>。也可以先启动服务，再手动访问该地址。
 
-**VS Code：**先打开项目目录，再安装 `vscode/local-replay-lab-0.3.0.vsix`。首次运行 `setup.ps1` 会安装依赖并构建这个扩展包。可在 PowerShell 执行：
+**VS Code：**先打开项目目录，再安装 `vscode/local-replay-lab-0.3.1.vsix`。首次运行 `setup.ps1` 会安装依赖并构建这个扩展包。可在 PowerShell 执行：
 
 ```powershell
-code --install-extension .\vscode\local-replay-lab-0.3.0.vsix --force
+code --install-extension .\vscode\local-replay-lab-0.3.1.vsix --force
 ```
 
 双击 `start-vscode.cmd` 打开项目，按 `Ctrl+Shift+P`，运行 **Replay Lab: 打开本地交易练习**。如果已打开旧版面板，先运行 **Developer: Reload Window / 开发人员: 重新加载窗口**，再重新打开面板。
@@ -160,8 +160,22 @@ Python 依赖版本锁在 `requirements-lock.txt`；图表库由 `package-lock.j
 
 ```powershell
 ./.venv/Scripts/python.exe -m pytest -q
+npm test
 node ./tests/extension-smoke.cjs
 ./.venv/Scripts/python.exe -m scripts.audit_v03
 ```
 
 项目源码采用根目录 `LICENSE` 中的 MIT 许可。第三方组件和行情来源说明见 `THIRD_PARTY_NOTICES.md`。市场数据由各来源方提供；请遵守来源的使用和再分发条款。使用该项目即表示你了解它只产生本地模拟结果。
+
+
+## v0.3.1 更新与记录管理
+
+升级时先运行 `./stop.ps1`，更新源码后执行 `./setup.ps1`。VS Code 用户重新安装 `vscode/local-replay-lab-0.3.1.vsix`，再执行“Developer: Reload Window”；浏览器刷新页面。旧版 0.2/0.3.0 记录仍可恢复。
+
+指标支持在开始练习前添加、复制、调整、应用；设置随新练习保存。操作会按顺序处理，侧栏和交易栏均显示进度或错误。新建失败时保留当前练习；切换资产会将无效日期调整到该资产的可用范围。
+
+开始前可设置“练习前历史 / 基础 K 线根数”，默认 300，范围 1–5000。新练习立即展示开始时间之前已经收盘的量价与指标；回放进度和收益从选定练习时段开始，历史预览不会自动下单。若本地历史不足，会提示并显示全部可用历史；分钟、小时、日线数据均按各自基础粒度计算。切换高周期后仅聚合当前已知数据。
+
+展开“历史记录（选择 / 批量管理）”，可勾选若干条或全选，再点击“删除已勾选”并确认永久删除。删除会移除记录 JSON、对应旧版备份，以及不再被其他记录使用的策略快照；选中的活动练习会关闭，批量回测进行中的记录须先取消任务。导出的报告单独保留在 `reports/`。此操作无法在应用内撤销。
+
+`npm test` 使用临时合成数据与隔离服务，逐项验证浏览器 HTTP 和 VS Code 消息桥两种路径的按钮绑定、指标增删改、下单平仓、策略、批量回测、恢复、导出和批量删除。图表绘制由浏览器实测另行验证。

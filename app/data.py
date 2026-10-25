@@ -144,9 +144,14 @@ def read_bars(start,end,symbol='BTCUSDT',warmup=300,with_meta=False,meta_overrid
     if d.empty or not (d.index>=start).any():raise ValueError('区间没有交易数据')
     if base=='1m' and not a.meta.get('allow_gaps') and (d.index.max()<end-duration(base) or d.index[d.index>=start].min()>start):raise ValueError('分钟数据未完整覆盖指定区间')
     d['bar_end']=d.index+duration(base)
+    # A base candle straddling the decision time is neither known history nor
+    # an executable opening after that time. Exclude it from both sides.
+    if ((d.index<start)&(d.bar_end>start)).any():
+        d=validate_frame(a.read(start,end,warmup+1));d['bar_end']=d.index+duration(base)
+    d=pd.concat([d[d.bar_end<=start].tail(warmup),d[d.index>=start]])
     d.attrs['base']=base
     if base=='1m' and not a.meta.get('allow_gaps') and (d.index.to_series().diff().dropna()!=duration(base)).any():raise ValueError('分钟源存在未标记缺口')
-    cursor=int((d.index<start).sum())-1
+    cursor=int((d.bar_end<=start).sum())-1
     return (d,cursor,dict(a.meta),a.fingerprint()) if with_meta else (d,cursor)
 def aggregate(known,timeframe):
     if timeframe==known.attrs.get('base','1m'):return known.copy()

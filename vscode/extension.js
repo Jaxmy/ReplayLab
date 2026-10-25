@@ -1,6 +1,6 @@
 const vscode=require('vscode'),fs=require('fs'),path=require('path'),cp=require('child_process');
 let child=null,panel=null;
-async function health(){try{const r=await fetch('http://127.0.0.1:8765/api/health');const h=await r.json();return h.ok&&h.engine==='NautilusTrader 1.231.0'&&h.version==='0.3.0';}catch{return false;}}
+async function health(){let h;try{const r=await fetch('http://127.0.0.1:8765/api/health');h=await r.json();}catch{return false;}if(h.ok&&h.version!=='0.3.1')throw Error('本地服务版本不匹配；请在项目目录运行 stop.ps1 后重新启动，再重新打开练习面板');return h.ok&&h.engine==='NautilusTrader 1.231.0'&&h.version==='0.3.1';}
 async function ensureServer(root,output){
  if(await health())return;
  const python=path.join(root,'.venv','Scripts','python.exe');if(!fs.existsSync(python))throw Error('找不到项目 Python 环境: '+python);

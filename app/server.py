@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from threading import RLock,Event,Thread
 from typing import Literal
-import csv,io,json,time,uuid,base64,struct
+import csv,io,json,time,uuid,base64,struct,re
 from app import indicators as ind
 from app import market_data
 from fastapi import FastAPI,HTTPException,Request
@@ -53,6 +53,12 @@ class Config(BaseModel):
     strategy_timeframe:str|None=None
     indicators:dict|None=None
     record_timeframe:str|None=None
+    warmup_bars:int=Field(default=300,ge=1,le=5000)
+    indicator_instances:list[dict]|None=None
+    replace_session_id:str|None=None
+class DeleteRecords(BaseModel):
+    model_config=ConfigDict(extra='forbid')
+    files:list[str]=Field(min_length=1,max_length=1000)
 class Order(BaseModel):
     model_config=ConfigDict(extra='forbid')
     action:Literal['long','short','close']
@@ -90,6 +96,8 @@ def hold(s):s.save()
 def health():return {'ok':True,'engine':'NautilusTrader 1.231.0','version':VERSION,'stage':'local simulation'}
 @app.get('/api/indicators')
 def indicator_catalog():return ind.catalog()
+@app.get('/api/indicators/defaults')
+def indicator_defaults():return ind.defaults()
 @app.get('/api/data/status')
 def data_status():
     path=market_data.ROOT/'data'/'update-status.json'
@@ -105,8 +113,19 @@ def session_list():
 @app.post('/api/sessions')
 def create(c:Config):
     with lock:
-        if len(sessions)>=5:raise ValueError('最多 5 个记录，请先关闭旧记录')
-        config=c.model_dump(exclude_none=True);s=Session(config);sessions[s.id]=s;hold(s);return s.view()
+        previous=sessions.get(c.replace_session_id)
+        if c.replace_session_id and previous is None:raise ValueError('当前记录已关闭，请刷新后重新开始')
+        if previous:idle(previous.id)
+        if len(sessions)>=5 and previous is None:raise ValueError('最多 5 个记录，请先关闭旧记录')
+        config=c.model_dump(exclude_none=True);config.pop('replace_session_id',None)
+        s=Session(config)
+        try:
+            result=s.view();hold(s)
+            if previous:
+                hold(previous);previous.close();del sessions[previous.id]
+            sessions[s.id]=s
+            return result
+        except Exception:s.close();raise
 @app.get('/api/sessions/{sid}')
 def state(sid:str,timeframe:str|None=None):
     with lock:return get(sid).view(timeframe)
@@ -154,10 +173,42 @@ def saved():
             records.append({'file':p.name,'name':d.get('name',f'{m.get("name","历史记录")}_{tf}_{p.stem}'),'asset':m.get('id'),'timeframe':tf,'updated_at':p.stat().st_mtime})
         except (ValueError,OSError):continue
     return records
+@app.delete('/api/saved')
+def delete_records(value:DeleteRecords):
+    """Delete selected records, close live copies, and reclaim unused code snapshots."""
+    with lock:
+        names=list(dict.fromkeys(value.files));directory=ROOT/'sessions'
+        if directory.is_symlink() or (directory/'legacy-backup').is_symlink():raise ValueError('拒绝删除符号链接目录中的记录')
+        for name in names:
+            if not re.fullmatch(r'[A-Za-z0-9_-]+\.json',name):raise ValueError('无效记录文件名')
+            for p in (directory/name,directory/'legacy-backup'/name):
+                if p.is_symlink():raise ValueError('拒绝删除符号链接记录')
+            idle(Path(name).stem)
+        deleted=[];closed=[];missing=[];freed=0
+        for name in names:
+            ident=Path(name).stem
+            if ident in sessions:
+                sessions[ident].close();del sessions[ident];closed.append(ident)
+            path=directory/name
+            (deleted if path.exists() else missing).append(name)
+            for p in (path,directory/'legacy-backup'/name):
+                if p.is_file():freed+=p.stat().st_size;p.unlink()
+        # Strategy code is shared by hash. Only collect when every remaining record is readable.
+        references=set();safe=True
+        for p in list(directory.glob('*.json'))+list((directory/'legacy-backup').glob('*.json')):
+            try:
+                strategy=json.loads(p.read_text('utf-8')).get('strategy') or {}
+                references.add(strategy.get('sha256'))
+            except (OSError,ValueError,AttributeError):safe=False
+        if safe and not (directory/'code').is_symlink():
+            for p in (directory/'code').glob('*.py'):
+                if not p.is_symlink() and re.fullmatch(r'[a-f0-9]{64}',p.stem) and p.stem not in references:
+                    freed+=p.stat().st_size;p.unlink()
+        return {'deleted':deleted,'missing':missing,'closed':closed,'freed_bytes':freed}
 @app.post('/api/restore/{name}')
 def restore(name:str):
     with lock:
-        if len(sessions)>=5:raise ValueError('请先关闭旧记录')
+        if len(sessions)>=5 and Path(name).stem not in sessions:raise ValueError('请先关闭旧记录')
         s=Session.restore(name)
         if s.id in sessions:sessions[s.id].close()
         sessions[s.id]=s;return s.view()
@@ -258,4 +309,4 @@ def cancel_job(jid:str):
 
 app.mount('/static',StaticFiles(directory=ROOT/'web'),name='static')
 @app.get('/')
-def index():return FileResponse(ROOT/'web'/'index.html')
+def index():return FileResponse(ROOT/'web'/'index.html',headers={'Cache-Control':'no-store'})
