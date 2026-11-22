@@ -7,7 +7,7 @@ from app.engine import Broker
 ROOT=Path(__file__).resolve().parents[1]
 MODULE_ROOT=ROOT
 from app import indicators as ind
-VERSION='0.3.2'
+VERSION='0.3.3'
 
 
 def migrate_records():
@@ -274,7 +274,7 @@ class Session:
     def restore(cls,name):
         if Path(name).name!=name or not name.endswith('.json'):raise ValueError('无效记录名称')
         p=json.loads((ROOT/'sessions'/name).read_text(encoding='utf-8'))
-        if p.get('version')!=2 or p.get('platform') not in ('0.2.0','0.3.0','0.3.1',VERSION):raise ValueError('旧版记录不兼容新逐仓模型；保留原文件，请新建练习')
+        if p.get('version')!=2 or p.get('platform') not in ('0.2.0','0.3.0','0.3.1','0.3.2',VERSION):raise ValueError('旧版记录不兼容新逐仓模型；保留原文件，请新建练习')
         config={**p['config'],'random_asset':False,'_snapshot_meta':p['meta']};s=cls(config)
         try:
             if p.get('preview_hash') and p['preview_hash']!=s.preview_hash:raise ValueError('练习前历史数据内容已变化，拒绝恢复')

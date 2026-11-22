@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 $replayPidFile=Join-Path $PSScriptRoot 'reports\server.pid'
 if (Test-Path -LiteralPath $replayPidFile) {
     $replayPid=[int](Get-Content -LiteralPath $replayPidFile)

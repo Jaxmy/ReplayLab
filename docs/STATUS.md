@@ -1,4 +1,4 @@
-# Replay Lab v0.3.2
+# Replay Lab v0.3.3
 
 Replay Lab combines local historical replay, simulated orders, configurable indicators, Python strategies, and report export. The browser and VS Code interfaces share one local service. Downloaded bars and user records remain in the project directory.
 
@@ -11,3 +11,5 @@ See [the README](../README.md) for installation, usage, data adapter instruction
 0.3.1 adds queued UI operations, pre-session indicator editing, date coverage correction, transactional session replacement, configurable causal pre-start history, and confirmed bulk record deletion with shared strategy snapshot retention. Regression tests cover both UI transports and isolated backend storage.
 
 0.3.2 keeps the newest candle visible after every replay advance, moves indicator readings outside the plot, and loads closed historical bars in the selected initial timeframe using bounded monthly aggregation. Prior record versions remain readable.
+
+0.3.3 fixes Windows PowerShell 5.1 decoding of Chinese startup/install/stop scripts using UTF-8 BOM, and gates releases on native Windows parsing checks.

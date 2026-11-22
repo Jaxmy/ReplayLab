@@ -6,7 +6,7 @@ Replay Lab 是一套运行在 Windows 本机的历史行情练习工具。它把
 
 ## 下载与安装
 
-可直接下载 [main 分支源码 ZIP](https://github.com/Jaxmy/ReplayLab/archive/refs/heads/main.zip)，解压到有写入权限的文件夹，再运行 `setup.ps1` 安装依赖、生成图表资源和 VS Code 扩展安装包。如果 Releases 提供 `Replay-Lab-v0.3.2-windows-x64.zip`，其中另含预先构建的扩展包。源码和发布包均不包含个人历史行情数据库与练习记录。
+可直接下载 [main 分支源码 ZIP](https://github.com/Jaxmy/ReplayLab/archive/refs/heads/main.zip)，解压到有写入权限的文件夹，再运行 `setup.ps1` 安装依赖、生成图表资源和 VS Code 扩展安装包。如果 Releases 提供 `Replay-Lab-v0.3.3-windows-x64.zip`，其中另含预先构建的扩展包。源码和发布包均不包含个人历史行情数据库与练习记录。
 
 需要 Windows 10/11、Python 3.12 或 3.13、Node.js 22 或更新版本（含 npm），并联网完成首次依赖安装。Node.js 用于安装图表库、构建 VS Code 扩展和解码中国指数历史数据。
 
@@ -32,10 +32,10 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 **浏览器：**双击 `start-browser.cmd`，应用会启动本地服务并打开 <http://127.0.0.1:8765/>。也可以先启动服务，再手动访问该地址。
 
-**VS Code：**先打开项目目录，再安装 `vscode/local-replay-lab-0.3.2.vsix`。首次运行 `setup.ps1` 会安装依赖并构建这个扩展包。可在 PowerShell 执行：
+**VS Code：**先打开项目目录，再安装 `vscode/local-replay-lab-0.3.3.vsix`。首次运行 `setup.ps1` 会安装依赖并构建这个扩展包。可在 PowerShell 执行：
 
 ```powershell
-code --install-extension .\vscode\local-replay-lab-0.3.2.vsix --force
+code --install-extension .\vscode\local-replay-lab-0.3.3.vsix --force
 ```
 
 双击 `start-vscode.cmd` 打开项目，按 `Ctrl+Shift+P`，运行 **Replay Lab: 打开本地交易练习**。如果已打开旧版面板，先运行 **Developer: Reload Window / 开发人员: 重新加载窗口**，再重新打开面板。
@@ -170,7 +170,7 @@ node ./tests/extension-smoke.cjs
 
 ## v0.3.1 更新与记录管理
 
-升级时先运行 `./stop.ps1`，更新源码后执行 `./setup.ps1`。VS Code 用户重新安装 `vscode/local-replay-lab-0.3.2.vsix`，再执行“Developer: Reload Window”；浏览器刷新页面。旧版 0.2/0.3.0 记录仍可恢复。
+升级时先运行 `./stop.ps1`，更新源码后执行 `./setup.ps1`。VS Code 用户重新安装 `vscode/local-replay-lab-0.3.3.vsix`，再执行“Developer: Reload Window”；浏览器刷新页面。旧版 0.2/0.3.0 记录仍可恢复。
 
 指标支持在开始练习前添加、复制、调整、应用；设置随新练习保存。操作会按顺序处理，侧栏和交易栏均显示进度或错误。新建失败时保留当前练习；切换资产会将无效日期调整到该资产的可用范围。
 
@@ -191,7 +191,14 @@ node ./tests/extension-smoke.cjs
 
 图表显示周期与基础执行时钟分开：如用 1m 数据显示 1h，单步仍推进一根基础分钟线，小时 K 线在当前已知信息内逐步更新；下单、止盈止损及策略回调继续按基础数据的先后顺序执行。
 
-升级到 0.3.2：运行 `./stop.ps1`，更新文件并执行 `./setup.ps1`；VS Code 重新安装 `vscode/local-replay-lab-0.3.2.vsix` 后执行“Developer: Reload Window”，浏览器刷新页面。
+升级到 0.3.2：运行 `./stop.ps1`，更新文件并执行 `./setup.ps1`；VS Code 重新安装 `vscode/local-replay-lab-0.3.3.vsix` 后执行“Developer: Reload Window”，浏览器刷新页面。
 
 
 发布维护者可在 GitHub Actions 的“Build and publish release”中运行工作流，或推送与源码版本一致的 `v*` 标签。工作流从源码生成图表资源、VS Code 扩展、Windows 使用包与 SHA-256 校验文件，上传到对应 Release。构建只需要 Node.js 22 和 Python 标准库，用户依赖仍由首次运行 `setup.ps1` 安装。本地打包可执行 `python -m scripts.package_release`，结果保存在 `dist/`；须先生成图表资源和扩展包。
+
+
+## v0.3.3：Windows CMD 启动编码修复
+
+`start-browser.cmd` 使用系统自带的 Windows PowerShell 5.1 执行 `start.ps1`。带中文的 PowerShell 脚本统一使用 UTF-8 with BOM 保存；请保留 BOM，以免系统按本地代码页误读中文并报字符串、标记或大括号语法错误。启动、安装和停止脚本均已修复。发布工作流会在 Windows PowerShell 5.1 下检查全部根目录 PowerShell 脚本，通过后才生成 Release。
+
+本地可运行 `powershell -NoProfile -ExecutionPolicy Bypass -File ./tests/check-powershell.ps1` 复验。升级时先停止旧服务，再使用新文件；VS Code 重新安装 0.3.3 扩展并重载窗口。0.3.2 记录继续兼容。

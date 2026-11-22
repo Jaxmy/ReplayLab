@@ -9,7 +9,15 @@ permissions:
   contents: write
 
 jobs:
+  windows-powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Windows PowerShell 5.1 startup scripts
+        shell: powershell
+        run: .\tests\check-powershell.ps1
   release:
+    needs: windows-powershell
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
